@@ -1,134 +1,114 @@
-d3.json("employment_vs_dengue.json").then(function(data) {
-    const margin = {top: 40, right: 20, bottom: 50, left: 60};
-    const width = 1000 - margin.left - margin.right;
-    const height = 500 - margin.top - margin.bottom;
+// D3.js script to visualize dengue cases vs. employment rate as a scatter plot with a filter for top N municipalities
 
-    const svg = d3.select("#chart")
-        .append("svg")
-        .attr("width", width + margin.left + margin.right)
-        .attr("height", height + margin.top + margin.bottom)
-        .append("g")
-        .attr("transform", `translate(${margin.left},${margin.top})`);
+// Set up dimensions
+const margin = { top: 50, right: 30, bottom: 50, left: 60 },
+    width = 800 - margin.left - margin.right,
+    height = 500 - margin.top - margin.bottom;
 
-    const municipalities = d3.groups(data, d => d.Municipality);
+// Create SVG container
+const svg = d3.select("#chart")
+    .append("svg")
+    .attr("width", width + margin.left + margin.right)
+    .attr("height", height + margin.top + margin.bottom)
+    .append("g")
+    .attr("transform", `translate(${margin.left},${margin.top})`);
+
+// Load data
+const dataUrl = "employment_vs_dengue.json";
+
+d3.json(dataUrl).then(data => {
+    data.sort((a, b) => b.cases - a.cases);
     
-    const x = d3.scaleLinear()
-        .domain(d3.extent(data, d => d.Year))
-        .range([0, width]);
+    // Create filter dropdown
+    const filterContainer = d3.select("#chart").append("div")
+        .attr("id", "filter-container");
 
-    const y = d3.scaleLinear()
-        .domain([0, d3.max(data, d => d.Cases)])
-        .nice()
-        .range([height, 0]);
+    filterContainer.append("label")
+        .attr("for", "topN")
+        .text("Show top N municipalities: ");
 
-    const color = d3.scaleOrdinal(d3.schemeCategory10)
-        .domain(municipalities.map(d => d[0]));
+    const filterInput = filterContainer.append("input")
+        .attr("type", "number")
+        .attr("id", "topN")
+        .attr("min", 1)
+        .attr("max", data.length)
+        .attr("value", 10);
 
-    const line = d3.line()
-        .x(d => x(d.Year))
-        .y(d => y(d.Cases));
-
-    const tooltip = d3.select("body").append("div")
-        .attr("class", "tooltip")
-        .style("position", "absolute")
-        .style("visibility", "hidden")
-        .style("background-color", "rgba(0, 0, 0, 0.7)")
-        .style("color", "white")
-        .style("padding", "5px")
-        .style("border-radius", "4px")
-        .style("font-size", "12px");
-
-    const lines = svg.selectAll(".line")
-        .data(municipalities)
-        .enter()
-        .append("path")
-        .attr("class", "line")
-        .attr("fill", "none")
-        .attr("stroke", d => color(d[0]))
-        .attr("stroke-width", 4)
-        .attr("d", d => line(d[1]))
-        .on("mouseover", function(event, d) {
-            d3.selectAll(".line")
-                .attr("stroke-opacity", 0.2); 
-            d3.select(this)
-                .attr("stroke-opacity", 1); 
-            
-            tooltip.style("visibility", "visible")
-                .text(d[0]); 
-        })
-        .on("mousemove", function(event) {
-            tooltip.style("top", (event.pageY + 10) + "px")
-                .style("left", (event.pageX + 10) + "px");
-        })
-        .on("mouseout", function() {
-            d3.selectAll(".line")
-                .attr("stroke-opacity", 1);
-            tooltip.style("visibility", "hidden");
-        })
-        .on("click", function(event, d) {
-            d3.selectAll(".line")
-                .style("display", "none");
-
-            d3.select(this)
-                .style("display", "inline");
-
-            const clickedMunicipalityData = d[1];
-
-            y.domain([0, d3.max(clickedMunicipalityData, d => d.Cases)])
-                .nice();
-
-            svg.select(".y-axis")
-                .transition()
-                .duration(500)
-                .call(d3.axisLeft(y));
-
-            d3.select(this)
-                .transition()
-                .duration(500)
-                .attr("d", line(clickedMunicipalityData));
-
-            const xDomain = d3.extent(clickedMunicipalityData, d => d.Year);
-            x.domain(xDomain);
-
-            svg.select(".x-axis")
-                .transition()
-                .duration(500)
-                .call(d3.axisBottom(x).tickFormat(d3.format("d")));
+    filterContainer.append("button")
+        .text("Apply Filter")
+        .on("click", () => {
+            const topN = +document.getElementById("topN").value;
+            updateChart(topN);
         });
 
-    svg.append("g")
-        .attr("class", "x-axis")
-        .attr("transform", `translate(0,${height})`)
-        .call(d3.axisBottom(x).tickFormat(d3.format("d")));
+    function updateChart(topN) {
+        const filteredData = data.slice(0, topN);
 
-    svg.append("g")
-        .attr("class", "y-axis")
-        .call(d3.axisLeft(y));
+        // Define scales
+        const x = d3.scaleLinear()
+            .domain([d3.min(filteredData, d => d.employed) - 2, d3.max(filteredData, d => d.employed) + 2])
+            .range([0, width]);
 
-    svg.on("dblclick", function() {
-        d3.selectAll(".line")
-            .style("display", "inline");
+        const y = d3.scaleLinear()
+            .domain([0, d3.max(filteredData, d => d.cases)])
+            .nice()
+            .range([height, 0]);
 
-        y.domain([0, d3.max(data, d => d.cases)])
-            .nice();
+        // Remove existing elements
+        svg.selectAll("*").remove();
 
-        svg.select(".y-axis")
-            .transition()
-            .duration(500)
+        // Add X-axis
+        svg.append("g")
+            .attr("transform", `translate(0,${height})`)
+            .call(d3.axisBottom(x).tickFormat(d => d + "%"));
+
+        // Add Y-axis
+        svg.append("g")
             .call(d3.axisLeft(y));
 
-        const xDomain = d3.extent(data, d => d.employment);
-        x.domain(xDomain);
+        // Add Labels
+        svg.append("text")
+            .attr("x", width / 2)
+            .attr("y", height + 40)
+            .attr("text-anchor", "middle")
+            .style("font-size", "14px")
+            .text("Employment Rate (%)");
 
-        svg.select(".x-axis")
-            .transition()
-            .duration(500)
-            .call(d3.axisBottom(x).tickFormat(d3.format("d")));
+        svg.append("text")
+            .attr("x", -height / 2)
+            .attr("y", -40)
+            .attr("text-anchor", "middle")
+            .attr("transform", "rotate(-90)")
+            .style("font-size", "14px")
+            .text("Total Dengue Cases (2019)");
 
-        lines.transition()
-            .duration(500)
-            .attr("d", function(d) {
-                return line(d[1]);
+        // Tooltip
+        const tooltip = d3.select("body").append("div")
+            .style("position", "absolute")
+            .style("visibility", "hidden")
+            .style("background", "white")
+            .style("border", "1px solid black")
+            .style("padding", "5px");
+        
+        // Add scatter points with transparency
+        svg.selectAll("circle")
+            .data(filteredData)
+            .enter()
+            .append("circle")
+            .attr("cx", d => x(d.employed))
+            .attr("cy", d => y(d.cases))
+            .attr("r", 6)
+            .attr("fill", "steelblue")
+            .attr("fill-opacity", 0.5)  // Apply transparency
+            .on("mouseover", (event, d) => {
+                tooltip.style("visibility", "visible")
+                    .html(`<strong>${d.Municipality}</strong><br>Dengue Cases: ${d.cases}<br>Employment Rate: ${d.employed}%`);
+            })
+            .on("mousemove", event => {
+                tooltip.style("top", `${event.pageY - 10}px`).style("left", `${event.pageX + 10}px`);
+            })
+            .on("mouseout", () => {
+                tooltip.style("visibility", "hidden");
             });
-    });
+    }
 });
