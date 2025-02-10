@@ -34,7 +34,7 @@ d3.json(dataUrl).then(data => {
         .attr("id", "topN")
         .attr("min", 1)
         .attr("max", data.length)
-        .attr("value", 10)
+        .attr("value", 1000)
         .style("margin-right", "10px");
 
     filterContainer.append("button")
@@ -52,14 +52,13 @@ d3.json(dataUrl).then(data => {
             updateChart(topN);
         });
     
-    updateChart(10); // Default to top 10
 
     function updateChart(topN) {
         const filteredData = data.slice(0, topN);
 
         // Define scales
         const x = d3.scaleLinear()
-            .domain([d3.min(filteredData, d => d.employed) - 2, d3.max(filteredData, d => d.employed) + 2])
+            .domain([d3.min(data, d => d.employed) - 2, d3.max(data, d => d.employed) + 2]) 
             .range([0, width]);
 
         const y = d3.scaleLinear()
